@@ -1,0 +1,32 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+body {
+    background: #F0F2FF;
+    color: #2D2D2D;
+}
+
+:root {
+    --primary: #6C63FF;
+    --secondary: #FF6584;
+    --accent: #43E97B;
+    --sidebar: #1E1E2F;
+    --bg: #F0F2FF;
+    --white: #ffffff;
+    --shadow: 0 4px 20px rgba(108, 99, 255, 0.15);
+}
+
+button {
+    cursor: pointer;
+    border: none;
+    outline: none;
+}
+
+input, select, textarea {
+    outline: none;
+    border: none;
+}
