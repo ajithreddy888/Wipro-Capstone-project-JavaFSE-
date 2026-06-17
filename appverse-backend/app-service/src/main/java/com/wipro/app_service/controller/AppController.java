@@ -57,12 +57,14 @@ public class AppController {
         Long userId = authentication != null ? (Long) authentication.getPrincipal() : 0L;
         appService.incrementDownload(id, userId);
 
-        String dummyContent = "This is a dummy APK file for app ID: " + id + "\nAppVerse Platform - Demo Download";
+        String dummyContent = "This is a dummy APK file for app ID: " + id
+                + "\nAppVerse Platform - Demo Download";
         byte[] bytes = dummyContent.getBytes();
         ByteArrayResource resource = new ByteArrayResource(bytes);
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=app-" + id + ".apk")
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=app-" + id + ".apk")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .contentLength(bytes.length)
                 .body(resource);
@@ -84,5 +86,12 @@ public class AppController {
     public ResponseEntity<String> removeByName(@RequestParam String name) {
         appService.removeByName(name);
         return ResponseEntity.ok("Removed");
+    }
+
+    @PutMapping("/update-by-name")
+    public ResponseEntity<String> updateByName(@RequestParam String name,
+                                               @RequestBody AppRequest request) {
+        appService.updateByName(name, request);
+        return ResponseEntity.ok("Updated");
     }
 }

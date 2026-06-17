@@ -45,22 +45,41 @@ public class DeveloperController {
         return ResponseEntity.ok(developerService.submitForReview(id, developerId));
     }
 
+    @PutMapping("/apps/{id}/update")
+    public ResponseEntity<DeveloperAppResponse> updateApp(
+            @PathVariable Long id,
+            @RequestBody DeveloperAppRequest request,
+            Authentication authentication) {
+        Long developerId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(developerService.updateApp(id, request, developerId));
+    }
+
+    @PutMapping("/apps/{id}/new-version")
+    public ResponseEntity<DeveloperAppResponse> releaseNewVersion(
+            @PathVariable Long id,
+            @RequestParam String newVersion,
+            @RequestParam String releaseNotes,
+            Authentication authentication) {
+        Long developerId = (Long) authentication.getPrincipal();
+        return ResponseEntity.ok(
+                developerService.releaseNewVersion(id, newVersion, releaseNotes, developerId));
+    }
+
+    @DeleteMapping("/apps/{id}/delete")
+    public ResponseEntity<String> deleteApp(
+            @PathVariable Long id,
+            Authentication authentication) {
+        Long developerId = (Long) authentication.getPrincipal();
+        developerService.deleteApp(id, developerId);
+        return ResponseEntity.ok("App deleted successfully");
+    }
+
     @PutMapping("/apps/{id}/unpublish")
     public ResponseEntity<DeveloperAppResponse> unpublishApp(
             @PathVariable Long id,
             Authentication authentication) {
         Long developerId = (Long) authentication.getPrincipal();
         return ResponseEntity.ok(developerService.unpublishApp(id, developerId));
-    }
-
-    @PutMapping("/apps/{id}/version")
-    public ResponseEntity<DeveloperAppResponse> updateVersion(
-            @PathVariable Long id,
-            @RequestParam String newVersion,
-            @RequestParam String releaseNotes,
-            Authentication authentication) {
-        Long developerId = (Long) authentication.getPrincipal();
-        return ResponseEntity.ok(developerService.updateVersion(id, newVersion, releaseNotes, developerId));
     }
 
     @GetMapping("/apps/{id}/versions")

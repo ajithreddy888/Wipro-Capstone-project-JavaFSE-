@@ -111,6 +111,17 @@ public class AppService {
                 });
     }
 
+    public void updateByName(String name, AppRequest request) {
+        appRepository.findByNameContainingIgnoreCase(name)
+                .forEach(app -> {
+                    app.setName(request.getName());
+                    app.setDescription(request.getDescription());
+                    app.setCategory(request.getCategory());
+                    app.setImageUrl(request.getImageUrl());
+                    appRepository.save(app);
+                });
+    }
+
     private AppResponse mapToResponse(App app) {
         return new AppResponse(
                 app.getId(),

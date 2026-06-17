@@ -54,6 +54,76 @@ public class DeveloperService {
         return mapToResponse(saved);
     }
 
+    public DeveloperAppResponse updateApp(Long id, DeveloperAppRequest request, Long developerId) {
+        DeveloperApp app = developerAppRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("App not found"));
+
+        if (!app.getDeveloperId().equals(developerId)) {
+            throw new RuntimeException("Unauthorized to update this app");
+        }
+
+        app.setName(request.getName());
+        app.setDescription(request.getDescription());
+        app.setCategory(request.getCategory());
+        app.setReleaseNotes(request.getReleaseNotes());
+        app.setImageUrl(request.getImageUrl());
+
+        DeveloperApp saved = developerAppRepository.save(app);
+
+        if (saved.getStatus().equals("PUBLISHED")) {
+            syncUpdateToMarketplace(saved);
+        }
+
+        return mapToResponse(saved);
+    }
+
+    public DeveloperAppResponse releaseNewVersion(Long id, String newVersion,
+                                                   String releaseNotes, Long developerId) {
+        DeveloperApp app = developerAppRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("App not found"));
+
+        if (!app.getDeveloperId().equals(developerId)) {
+            throw new RuntimeException("Unauthorized to update version");
+        }
+
+        String oldVersion = app.getCurrentVersion();
+        app.setCurrentVersion(newVersion);
+        app.setReleaseNotes(releaseNotes);
+        app.setStatus("PENDING"); // Re-submit for review on new version
+
+        DeveloperApp saved = developerAppRepository.save(app);
+
+        // Save version history
+        AppVersion version = new AppVersion();
+        version.setAppId(id);
+        version.setVersion(newVersion);
+        version.setReleaseNotes(releaseNotes);
+        appVersionRepository.save(version);
+
+        System.out.println("New version released: " + oldVersion + " → " + newVersion);
+
+        return mapToResponse(saved);
+    }
+
+    public void deleteApp(Long id, Long developerId) {
+        DeveloperApp app = developerAppRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("App not found"));
+
+        if (!app.getDeveloperId().equals(developerId)) {
+            throw new RuntimeException("Unauthorized to delete this app");
+        }
+
+        // Delete all version history first
+        List<AppVersion> versions = appVersionRepository.findByAppId(id);
+        appVersionRepository.deleteAll(versions);
+
+        // Delete from dev_db
+        developerAppRepository.delete(app);
+
+        // Remove from app_db marketplace
+        removeFromMarketplace(app.getName());
+    }
+
     public List<DeveloperAppResponse> getMyApps(Long developerId) {
         return developerAppRepository.findByDeveloperId(developerId)
                 .stream()
@@ -78,8 +148,7 @@ public class DeveloperService {
         app.setStatus("PENDING");
         return mapToResponse(developerAppRepository.save(app));
     }
-/*ADMIN USE FOR APPROVAL OF APP AND UPON APPROVAL 
- * APP GETS ADDED TO APP DB INTIALLY STORED ONLY AT DEV_DB */
+
     public DeveloperAppResponse approveApp(Long id) {
         DeveloperApp app = developerAppRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("App not found"));
@@ -114,6 +183,29 @@ public class DeveloperService {
                 .collect(Collectors.toList());
     }
 
+    public List<AppVersion> getVersionHistory(Long appId) {
+        return appVersionRepository.findByAppId(appId);
+    }
+
+    public List<DeveloperAppResponse> getAllPublishedApps() {
+        return developerAppRepository.findByStatus("PUBLISHED")
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    public DeveloperAppResponse unpublishApp(Long id, Long developerId) {
+        DeveloperApp app = developerAppRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("App not found"));
+
+        if (!app.getDeveloperId().equals(developerId)) {
+            throw new RuntimeException("Unauthorized to unpublish this app");
+        }
+
+        app.setStatus("UNPUBLISHED");
+        return mapToResponse(developerAppRepository.save(app));
+    }
+
     @CircuitBreaker(name = "marketplaceSync", fallbackMethod = "syncFallback")
     public void syncToMarketplace(DeveloperApp app) {
         Map<String, Object> request = new HashMap<>();
@@ -137,6 +229,27 @@ public class DeveloperService {
                 + app.getName() + " | Reason: " + e.getMessage());
     }
 
+    @CircuitBreaker(name = "marketplaceSync", fallbackMethod = "syncUpdateFallback")
+    public void syncUpdateToMarketplace(DeveloperApp app) {
+        Map<String, Object> request = new HashMap<>();
+        request.put("name", app.getName());
+        request.put("description", app.getDescription());
+        request.put("category", app.getCategory());
+        request.put("developerName", app.getDeveloperName());
+        request.put("developerId", app.getDeveloperId());
+        request.put("imageUrl", app.getImageUrl());
+
+        restTemplate.put(
+                appServiceUrl + "/api/apps/update-by-name?name=" + app.getName(),
+                request
+        );
+        System.out.println("Updated in marketplace: " + app.getName());
+    }
+
+    public void syncUpdateFallback(DeveloperApp app, Exception e) {
+        System.out.println("Update sync fallback for: " + app.getName());
+    }
+
     @CircuitBreaker(name = "marketplaceSync", fallbackMethod = "removeFallback")
     public void removeFromMarketplace(String appName) {
         restTemplate.delete(appServiceUrl + "/api/apps/remove-by-name?name=" + appName);
@@ -145,50 +258,6 @@ public class DeveloperService {
 
     public void removeFallback(String appName, Exception e) {
         System.out.println("Remove fallback fired for: " + appName);
-    }
-
-    public DeveloperAppResponse unpublishApp(Long id, Long developerId) {
-        DeveloperApp app = developerAppRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("App not found"));
-
-        if (!app.getDeveloperId().equals(developerId)) {
-            throw new RuntimeException("Unauthorized to unpublish this app");
-        }
-
-        app.setStatus("UNPUBLISHED");
-        return mapToResponse(developerAppRepository.save(app));
-    }
-
-    public DeveloperAppResponse updateVersion(Long id, String newVersion,
-                                               String releaseNotes, Long developerId) {
-        DeveloperApp app = developerAppRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("App not found"));
-
-        if (!app.getDeveloperId().equals(developerId)) {
-            throw new RuntimeException("Unauthorized to update this app");
-        }
-
-        app.setCurrentVersion(newVersion);
-        app.setReleaseNotes(releaseNotes);
-
-        AppVersion version = new AppVersion();
-        version.setAppId(id);
-        version.setVersion(newVersion);
-        version.setReleaseNotes(releaseNotes);
-        appVersionRepository.save(version);
-
-        return mapToResponse(developerAppRepository.save(app));
-    }
-
-    public List<AppVersion> getVersionHistory(Long appId) {
-        return appVersionRepository.findByAppId(appId);
-    }
-
-    public List<DeveloperAppResponse> getAllPublishedApps() {
-        return developerAppRepository.findByStatus("PUBLISHED")
-                .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
     }
 
     private DeveloperAppResponse mapToResponse(DeveloperApp app) {

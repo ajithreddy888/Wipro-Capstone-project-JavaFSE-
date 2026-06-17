@@ -18,9 +18,15 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/apps/all", "/api/apps/search",
-                                 "/api/apps/category/**", "/api/apps/{id}",
-                                 "/api/apps/add", "/api/apps/remove-by-name").permitAll()
+                .requestMatchers(
+                    "/api/apps/all",
+                    "/api/apps/search",
+                    "/api/apps/category/**",
+                    "/api/apps/{id}",
+                    "/api/apps/add",
+                    "/api/apps/remove-by-name",
+                    "/api/apps/update-by-name"
+                ).permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

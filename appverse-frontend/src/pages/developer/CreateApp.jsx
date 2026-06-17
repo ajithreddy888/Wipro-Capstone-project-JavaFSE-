@@ -1,8 +1,17 @@
+// =============================================
+// CreateApp.jsx
+// Beginner-friendly commented version.
+// Only comments have been added.
+// =============================================
+
+// Imports React and required hooks/components.
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import API from '../../api/axios';
 
+// Main component declaration.
 const CreateApp = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -53,6 +62,7 @@ const CreateApp = () => {
         marginTop: '6px',
     };
 
+    // JSX returned to the browser.
     return (
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
             <h2>Publish New App</h2>
@@ -111,5 +121,6 @@ const CreateApp = () => {
         </div>
     );
 };
+
 
 export default CreateApp;
