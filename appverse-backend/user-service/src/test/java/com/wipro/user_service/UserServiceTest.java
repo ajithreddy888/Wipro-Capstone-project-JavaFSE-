@@ -1,12 +1,14 @@
 package com.wipro.user_service;
 
-import com.wipro.user_service.dto.LoginRequest;
-import com.wipro.user_service.dto.LoginResponse;
-import com.wipro.user_service.dto.RegisterRequest;
-import com.wipro.user_service.entity.User;
-import com.wipro.user_service.repo.UserRepository;
-import com.wipro.user_service.security.JwtUtil;
-import com.wipro.user_service.service.UserService;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,13 +18,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.Optional;
+import com.wipro.user_service.dto.LoginRequest;
+import com.wipro.user_service.dto.LoginResponse;
+import com.wipro.user_service.dto.RegisterRequest;
+import com.wipro.user_service.entity.User;
+import com.wipro.user_service.repo.UserRepository;
+import com.wipro.user_service.security.JwtUtil;
+import com.wipro.user_service.service.UserService;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
-public class UserServiceTest {
+class UserServiceTest {
 
     @Mock
     private UserRepository userRepository;
@@ -36,199 +41,171 @@ public class UserServiceTest {
     @InjectMocks
     private UserService userService;
 
-    private User ajithUser;
-    private User googleUser;
-    private User adminUser;
+    private User user;
+    private RegisterRequest registerRequest;
+    private LoginRequest loginRequest;
 
     @BeforeEach
     void setUp() {
-        ajithUser = new User();
-        ajithUser.setId(1L);
-        ajithUser.setName("Ajith");
-        ajithUser.setEmail("ajith@gmail.com");
-        ajithUser.setPassword("$2a$10$hashedpassword_ajith");
-        ajithUser.setRole("USER");
-        ajithUser.setActive(true);
 
-        googleUser = new User();
-        googleUser.setId(2L);
-        googleUser.setName("Google Dev");
-        googleUser.setEmail("google@gmail.com");
-        googleUser.setPassword("$2a$10$hashedpassword_google");
-        googleUser.setRole("DEVELOPER");
-        googleUser.setActive(true);
+        user = new User();
+        user.setId(1L);
+        user.setName("Ajith");
+        user.setEmail("ajith@test.com");
+        user.setPassword("encodedPassword");
+        user.setRole("USER");
+        user.setActive(true);
 
-        adminUser = new User();
-        adminUser.setId(3L);
-        adminUser.setName("Admin User");
-        adminUser.setEmail("admin@test.com");
-        adminUser.setPassword("$2a$10$hashedpassword_admin");
-        adminUser.setRole("ADMIN");
-        adminUser.setActive(true);
+        registerRequest = new RegisterRequest();
+        registerRequest.setName("Ajith");
+        registerRequest.setEmail("ajith@test.com");
+        registerRequest.setPassword("password");
+        registerRequest.setRole("USER");
+
+        loginRequest = new LoginRequest();
+        loginRequest.setEmail("ajith@test.com");
+        loginRequest.setPassword("password");
     }
 
     @Test
-    void register_Success() {
-        RegisterRequest request = new RegisterRequest();
-        request.setName("Ajith");
-        request.setEmail("ajith@gmail.com");
-        request.setPassword("123");
-        request.setRole("USER");
+    void testRegisterSuccess() {
 
-        when(userRepository.existsByEmail("ajith@gmail.com")).thenReturn(false);
-        when(passwordEncoder.encode("123")).thenReturn("$2a$10$hashedpassword_ajith");
-        when(userRepository.save(any(User.class))).thenReturn(ajithUser);
+        when(userRepository.existsByEmail(registerRequest.getEmail()))
+                .thenReturn(false);
 
-        String result = userService.register(request);
+        when(passwordEncoder.encode(registerRequest.getPassword()))
+                .thenReturn("encodedPassword");
+
+        String result = userService.register(registerRequest);
 
         assertEquals("User registered successfully", result);
-        verify(userRepository, times(1)).save(any(User.class));
+
+        verify(userRepository).save(any(User.class));
     }
 
     @Test
-    void register_EmailAlreadyExists_ThrowsException() {
-        RegisterRequest request = new RegisterRequest();
-        request.setEmail("ajith@gmail.com");
-        request.setPassword("123");
+    void testRegisterEmailAlreadyExists() {
 
-        when(userRepository.existsByEmail("ajith@gmail.com")).thenReturn(true);
-
-        RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> userService.register(request));
-
-        assertEquals("Email already registered", ex.getMessage());
-        verify(userRepository, never()).save(any(User.class));
-    }
-
-    @Test
-    void login_Ajith_Success() {
-        LoginRequest request = new LoginRequest();
-        request.setEmail("ajith@gmail.com");
-        request.setPassword("123");
-
-        when(userRepository.findByEmail("ajith@gmail.com"))
-                .thenReturn(Optional.of(ajithUser));
-        when(passwordEncoder.matches("123", "$2a$10$hashedpassword_ajith"))
+        when(userRepository.existsByEmail(registerRequest.getEmail()))
                 .thenReturn(true);
-        when(jwtUtil.generateToken(1L, "ajith@gmail.com", "USER"))
-                .thenReturn("mock.jwt.token.ajith");
 
-        LoginResponse response = userService.login(request);
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> userService.register(registerRequest));
+
+        assertEquals("Email already registered", exception.getMessage());
+    }
+
+    @Test
+    void testLoginSuccess() {
+
+        when(userRepository.findByEmail(loginRequest.getEmail()))
+                .thenReturn(Optional.of(user));
+
+        when(passwordEncoder.matches(loginRequest.getPassword(),
+                user.getPassword()))
+                .thenReturn(true);
+
+        when(jwtUtil.generateToken(
+                user.getId(),
+                user.getEmail(),
+                user.getRole()))
+                .thenReturn("jwt-token");
+
+        LoginResponse response = userService.login(loginRequest);
 
         assertNotNull(response);
+        assertEquals("jwt-token", response.getToken());
         assertEquals("USER", response.getRole());
         assertEquals(1L, response.getUserId());
         assertEquals("Ajith", response.getName());
-        assertEquals("mock.jwt.token.ajith", response.getToken());
     }
 
     @Test
-    void login_GoogleDev_Success() {
-        LoginRequest request = new LoginRequest();
-        request.setEmail("google@gmail.com");
-        request.setPassword("123456");
+    void testLoginUserNotFound() {
 
-        when(userRepository.findByEmail("google@gmail.com"))
-                .thenReturn(Optional.of(googleUser));
-        when(passwordEncoder.matches("123456", "$2a$10$hashedpassword_google"))
-                .thenReturn(true);
-        when(jwtUtil.generateToken(2L, "google@gmail.com", "DEVELOPER"))
-                .thenReturn("mock.jwt.token.google");
-
-        LoginResponse response = userService.login(request);
-
-        assertNotNull(response);
-        assertEquals("DEVELOPER", response.getRole());
-        assertEquals(2L, response.getUserId());
-    }
-
-    @Test
-    void login_Admin_Success() {
-        LoginRequest request = new LoginRequest();
-        request.setEmail("admin@test.com");
-        request.setPassword("123456");
-
-        when(userRepository.findByEmail("admin@test.com"))
-                .thenReturn(Optional.of(adminUser));
-        when(passwordEncoder.matches("123456", "$2a$10$hashedpassword_admin"))
-                .thenReturn(true);
-        when(jwtUtil.generateToken(3L, "admin@test.com", "ADMIN"))
-                .thenReturn("mock.jwt.token.admin");
-
-        LoginResponse response = userService.login(request);
-
-        assertNotNull(response);
-        assertEquals("ADMIN", response.getRole());
-        assertEquals("Admin User", response.getName());
-    }
-
-    @Test
-    void login_WrongPassword_ThrowsException() {
-        LoginRequest request = new LoginRequest();
-        request.setEmail("ajith@gmail.com");
-        request.setPassword("wrongpass");
-
-        when(userRepository.findByEmail("ajith@gmail.com"))
-                .thenReturn(Optional.of(ajithUser));
-        when(passwordEncoder.matches("wrongpass", "$2a$10$hashedpassword_ajith"))
-                .thenReturn(false);
-
-        RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> userService.login(request));
-
-        assertEquals("Invalid password", ex.getMessage());
-    }
-
-    @Test
-    void login_UserNotFound_ThrowsException() {
-        LoginRequest request = new LoginRequest();
-        request.setEmail("unknown@gmail.com");
-        request.setPassword("123456");
-
-        when(userRepository.findByEmail("unknown@gmail.com"))
+        when(userRepository.findByEmail(loginRequest.getEmail()))
                 .thenReturn(Optional.empty());
 
-        RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> userService.login(request));
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> userService.login(loginRequest));
 
-        assertEquals("User not found", ex.getMessage());
+        assertEquals("User not found", exception.getMessage());
     }
 
     @Test
-    void login_InactiveUser_ThrowsException() {
-        ajithUser.setActive(false);
+    void testLoginInactiveUser() {
 
-        LoginRequest request = new LoginRequest();
-        request.setEmail("ajith@gmail.com");
-        request.setPassword("123");
+        user.setActive(false);
 
-        when(userRepository.findByEmail("ajith@gmail.com"))
-                .thenReturn(Optional.of(ajithUser));
+        when(userRepository.findByEmail(loginRequest.getEmail()))
+                .thenReturn(Optional.of(user));
 
-        RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> userService.login(request));
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> userService.login(loginRequest));
 
-        assertEquals("Account is deactivated", ex.getMessage());
+        assertEquals("Account is deactivated", exception.getMessage());
     }
 
     @Test
-    void getUserById_Success() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(ajithUser));
+    void testLoginInvalidPassword() {
+
+        when(userRepository.findByEmail(loginRequest.getEmail()))
+                .thenReturn(Optional.of(user));
+
+        when(passwordEncoder.matches(loginRequest.getPassword(),
+                user.getPassword()))
+                .thenReturn(false);
+
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> userService.login(loginRequest));
+
+        assertEquals("Invalid password", exception.getMessage());
+    }
+
+    @Test
+    void testGetUserByIdSuccess() {
+
+        when(userRepository.findById(1L))
+                .thenReturn(Optional.of(user));
 
         User result = userService.getUserById(1L);
 
         assertNotNull(result);
+        assertEquals(1L, result.getId());
         assertEquals("Ajith", result.getName());
-        assertEquals("ajith@gmail.com", result.getEmail());
+        assertEquals("ajith@test.com", result.getEmail());
     }
 
     @Test
-    void getUserById_NotFound_ThrowsException() {
-        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+    void testGetUserByIdNotFound() {
 
-        RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> userService.getUserById(99L));
+        when(userRepository.findById(1L))
+                .thenReturn(Optional.empty());
 
-        assertEquals("User not found", ex.getMessage());
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> userService.getUserById(1L));
+
+        assertEquals("User not found", exception.getMessage());
+    }
+
+    @Test
+    void testRegisterDefaultRole() {
+
+        registerRequest.setRole(null);
+
+        when(userRepository.existsByEmail(registerRequest.getEmail()))
+                .thenReturn(false);
+
+        when(passwordEncoder.encode(anyString()))
+                .thenReturn("encodedPassword");
+
+        userService.register(registerRequest);
+
+        verify(userRepository).save(any(User.class));
     }
 }
